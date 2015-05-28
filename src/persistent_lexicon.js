@@ -349,6 +349,41 @@ Lexicon.prototype.parseUri = function(uriString) {
     return InMemoryLexicon.prototype.parseUri(uriString);
 };
 
+Lexicon.prototype.allCounts = function(callback) {
+    var ids = {};
+    var transaction = this.db.transaction(['knownGraphs', 'blanks', 'uris', 'literals'],'readwrite');
+    function countIds(objectStore, idField, cb) {
+        var request = objectStore.openCursor();
+        request.onsuccess = function(event) {
+            var cursor = event.target.result;
+            if(cursor) {
+                ids[cursor.value[idField]]=cursor.value.counter;
+                cursor.continue();
+            } else {
+                cb(ids);
+            }
+        };
+        request.onerror = function(event) {
+            cb(null,new Error("Error retrieving data from the cursor: " + event.target.errorCode));
+        }
+    }
+    countIds(transaction.objectStore('uris'), 'id', function(value, err){
+        if(err) {
+            callback(null, err);
+        }
+        else {
+            countIds(transaction.objectStore('blanks'),'id', function(value, err){
+                if(err) {
+                    callback(null, err);
+                }
+                else {
+                    countIds(transaction.objectStore('literals'), 'id', callback);
+                }
+            })
+        }
+    });
+}
+
 /**
  * Retrieves a token containing the URI, literal or blank node associated
  * to the provided OID.
@@ -477,6 +512,37 @@ Lexicon.prototype.unregister = function (quad, key, callback) {
 };
 
 /**
+ * dereferences or removes Uri
+ */
+Lexicon.prototype.dereferenceLexical = function(oid, objectStore, callback) {
+    var that = this;
+    if(oid === this.defaultGraphOid) {
+        callback(this.defaultGraphOid);
+    } else{
+        var request = objectStore.get(oid);
+        request.onsuccess = function(event) {
+            var lexicalData = event.target.result;
+            if(lexicalData) {
+                // found -> update
+                lexicalData.counter--;
+                var requestUpdate = lexicalData.counter >= 0 ? objectStore.put(lexicalData) : objectStore.delete(oid);
+                requestUpdate.onsuccess =function (event) {
+                    callback(lexicalData.counter);
+                };
+                requestUpdate.onerror = function (event) {
+                    callback(null, new Error("Error updating the LEXICAL data ["+oid+"]" + event.target.errorCode));
+                };
+            } else {
+                callback();
+            }
+        };
+        request.onerror = function(event) {
+            callback(null, new Error("Error retrieving the LEXICAL data for dereferenceing ["+oid+"]"+event.target.errorCode));
+        };
+    }
+}
+
+/**
  * Unregisters a value, either URI, literal or blank.
  * @param kind
  * @param oid
@@ -489,24 +555,25 @@ Lexicon.prototype._unregisterTerm = function (kind, oid, callback) {
     if (kind === 'uri') {
         if (oid != this.defaultGraphOid) {
             var removeKnownGraphs = function() {
-                var request = transaction.objectStore("knownGraphs").delete(oid);
-                request.onsuccess = function() { callback(); };
+                that.dereferenceLexical(oid,
+                                        transaction.objectStore("knownGraphs"), 
+                                        function() { callback(); });
                 //request.onerror = function(){ callback(); };
             };
-            var request = transaction.objectStore("uris").delete(oid);
-            request.onsuccess = removeKnownGraphs();
+            that.dereferenceLexical(oid, transaction.objectStore("uris"), removeKnownGraphs);
             //request.onerror = removeKnownGraphs();
         } else {
             callback();
         }
     } else if (kind === 'literal') {
-        var request = transaction.objectStore("literals").delete(oid);
-        request.onsuccess = function() { callback(); };
+        that.dereferenceLexical(oid,
+                                transaction.objectStore("literals"),
+                                function() { callback(); });
         //request.onerror = function() { callback(); };
-
     } else if (kind === 'blank') {
-        var request = transaction.objectStore("blanks").delete(oid);
-        request.onsuccess = function() { callback(); };
+        that.dereferenceLexical(oid,
+                                transaction.objectsStore("blanks"),
+                                function() { callback(); });
         //request.onerror = function() { callback(); };
     } else {
         callback();

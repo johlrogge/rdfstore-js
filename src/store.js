@@ -67,6 +67,7 @@ Store = function(arg1, arg2) {
                 var createEngine = function() {
                     params.backend = backend;
                     params.lexicon = lexicon;
+                    
                     that.engine = new QueryEngine(params);
 
                     callback(null, that);
@@ -95,6 +96,10 @@ Store = function(arg1, arg2) {
  */
 Store.prototype.rdf = RDFModel.rdf;
 Store.prototype.rdf.api = RDFModel;
+
+Store.prototype.checkIntegrity = function(callback){
+    this.engine.checkIntegrity(callback);
+};
 
 /**
  * Registers a new function with an associated name that can

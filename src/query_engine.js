@@ -26,6 +26,10 @@ QueryEngine = function(params) {
     }
 };
 
+QueryEngine.prototype.checkIntegrity = function(callback) {
+    this.lexicon.allCounts(callback);
+}
+
 QueryEngine.prototype.setCustomFunctions = function(customFns) {
     this.customFns = customFns;
 };
@@ -1681,7 +1685,7 @@ QueryEngine.prototype._executeQuadDelete = function(quad, queryEnv, callback) {
     var errorMessage, key;
     async.seq(
         function(k){
-            that.normalizeQuad(quad, queryEnv, true, function(result){
+            that.normalizeQuad(quad, queryEnv, false, function(result){
                 if(result != null){
                     normalized = result;
                 } else {

@@ -1238,7 +1238,7 @@ var lookup = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 }(typeof exports === 'undefined' ? (this.base64js = {}) : exports))
 
 },{}],4:[function(_dereq_,module,exports){
-exports.read = function(buffer, offset, isLE, mLen, nBytes) {
+exports.read = function (buffer, offset, isLE, mLen, nBytes) {
   var e, m,
       eLen = nBytes * 8 - mLen - 1,
       eMax = (1 << eLen) - 1,
@@ -1246,32 +1246,32 @@ exports.read = function(buffer, offset, isLE, mLen, nBytes) {
       nBits = -7,
       i = isLE ? (nBytes - 1) : 0,
       d = isLE ? -1 : 1,
-      s = buffer[offset + i];
+      s = buffer[offset + i]
 
-  i += d;
+  i += d
 
-  e = s & ((1 << (-nBits)) - 1);
-  s >>= (-nBits);
-  nBits += eLen;
-  for (; nBits > 0; e = e * 256 + buffer[offset + i], i += d, nBits -= 8);
+  e = s & ((1 << (-nBits)) - 1)
+  s >>= (-nBits)
+  nBits += eLen
+  for (; nBits > 0; e = e * 256 + buffer[offset + i], i += d, nBits -= 8) {}
 
-  m = e & ((1 << (-nBits)) - 1);
-  e >>= (-nBits);
-  nBits += mLen;
-  for (; nBits > 0; m = m * 256 + buffer[offset + i], i += d, nBits -= 8);
+  m = e & ((1 << (-nBits)) - 1)
+  e >>= (-nBits)
+  nBits += mLen
+  for (; nBits > 0; m = m * 256 + buffer[offset + i], i += d, nBits -= 8) {}
 
   if (e === 0) {
-    e = 1 - eBias;
+    e = 1 - eBias
   } else if (e === eMax) {
-    return m ? NaN : ((s ? -1 : 1) * Infinity);
+    return m ? NaN : ((s ? -1 : 1) * Infinity)
   } else {
-    m = m + Math.pow(2, mLen);
-    e = e - eBias;
+    m = m + Math.pow(2, mLen)
+    e = e - eBias
   }
-  return (s ? -1 : 1) * m * Math.pow(2, e - mLen);
-};
+  return (s ? -1 : 1) * m * Math.pow(2, e - mLen)
+}
 
-exports.write = function(buffer, value, offset, isLE, mLen, nBytes) {
+exports.write = function (buffer, value, offset, isLE, mLen, nBytes) {
   var e, m, c,
       eLen = nBytes * 8 - mLen - 1,
       eMax = (1 << eLen) - 1,
@@ -1279,49 +1279,49 @@ exports.write = function(buffer, value, offset, isLE, mLen, nBytes) {
       rt = (mLen === 23 ? Math.pow(2, -24) - Math.pow(2, -77) : 0),
       i = isLE ? 0 : (nBytes - 1),
       d = isLE ? 1 : -1,
-      s = value < 0 || (value === 0 && 1 / value < 0) ? 1 : 0;
+      s = value < 0 || (value === 0 && 1 / value < 0) ? 1 : 0
 
-  value = Math.abs(value);
+  value = Math.abs(value)
 
   if (isNaN(value) || value === Infinity) {
-    m = isNaN(value) ? 1 : 0;
-    e = eMax;
+    m = isNaN(value) ? 1 : 0
+    e = eMax
   } else {
-    e = Math.floor(Math.log(value) / Math.LN2);
+    e = Math.floor(Math.log(value) / Math.LN2)
     if (value * (c = Math.pow(2, -e)) < 1) {
-      e--;
-      c *= 2;
+      e--
+      c *= 2
     }
     if (e + eBias >= 1) {
-      value += rt / c;
+      value += rt / c
     } else {
-      value += rt * Math.pow(2, 1 - eBias);
+      value += rt * Math.pow(2, 1 - eBias)
     }
     if (value * c >= 2) {
-      e++;
-      c /= 2;
+      e++
+      c /= 2
     }
 
     if (e + eBias >= eMax) {
-      m = 0;
-      e = eMax;
+      m = 0
+      e = eMax
     } else if (e + eBias >= 1) {
-      m = (value * c - 1) * Math.pow(2, mLen);
-      e = e + eBias;
+      m = (value * c - 1) * Math.pow(2, mLen)
+      e = e + eBias
     } else {
-      m = value * Math.pow(2, eBias - 1) * Math.pow(2, mLen);
-      e = 0;
+      m = value * Math.pow(2, eBias - 1) * Math.pow(2, mLen)
+      e = 0
     }
   }
 
-  for (; mLen >= 8; buffer[offset + i] = m & 0xff, i += d, m /= 256, mLen -= 8);
+  for (; mLen >= 8; buffer[offset + i] = m & 0xff, i += d, m /= 256, mLen -= 8) {}
 
-  e = (e << mLen) | m;
-  eLen += mLen;
-  for (; eLen > 0; buffer[offset + i] = e & 0xff, i += d, e /= 256, eLen -= 8);
+  e = (e << mLen) | m
+  eLen += mLen
+  for (; eLen > 0; buffer[offset + i] = e & 0xff, i += d, e /= 256, eLen -= 8) {}
 
-  buffer[offset + i - d] |= s * 128;
-};
+  buffer[offset + i - d] |= s * 128
+}
 
 },{}],5:[function(_dereq_,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
@@ -15357,6 +15357,8 @@ function N3Parser(options) {
       return this._callback = noop, this._subject = null;
     };
   }
+  this._blankNodePrefix = typeof options.blankNodePrefix !== 'string' ? '' :
+                            '_:' + options.blankNodePrefix.replace(/^_:/, '');
   this._lexer = options.lexer || new N3Lexer({ lineMode: isLineMode });
 }
 
@@ -15905,7 +15907,7 @@ N3Parser.prototype = {
     // We start reading in the top context.
     this._readCallback = this._readInTopContext;
     this._prefixes = Object.create(null);
-    this._prefixes._ = '_:b' + blankNodePrefix++ + '_';
+    this._prefixes._ = this._blankNodePrefix || '_:b' + blankNodePrefix++ + '_';
 
     // If the input argument is not given, shift parameters
     if (typeof input === 'function')
@@ -17637,6 +17639,7 @@ Store = function(arg1, arg2) {
                 var createEngine = function() {
                     params.backend = backend;
                     params.lexicon = lexicon;
+                    
                     that.engine = new QueryEngine(params);
 
                     callback(null, that);
@@ -17665,6 +17668,10 @@ Store = function(arg1, arg2) {
  */
 Store.prototype.rdf = RDFModel.rdf;
 Store.prototype.rdf.api = RDFModel;
+
+Store.prototype.checkIntegrity = function(callback){
+    this.engine.checkIntegrity(callback);
+};
 
 /**
  * Registers a new function with an associated name that can
@@ -23224,6 +23231,41 @@ Lexicon.prototype.parseUri = function(uriString) {
     return InMemoryLexicon.prototype.parseUri(uriString);
 };
 
+Lexicon.prototype.allCounts = function(callback) {
+    var ids = {};
+    var transaction = this.db.transaction(['knownGraphs', 'blanks', 'uris', 'literals'],'readwrite');
+    function countIds(objectStore, idField, cb) {
+        var request = objectStore.openCursor();
+        request.onsuccess = function(event) {
+            var cursor = event.target.result;
+            if(cursor) {
+                ids[cursor.value[idField]]=cursor.value.counter;
+                cursor.continue();
+            } else {
+                cb(ids);
+            }
+        };
+        request.onerror = function(event) {
+            cb(null,new Error("Error retrieving data from the cursor: " + event.target.errorCode));
+        }
+    }
+    countIds(transaction.objectStore('uris'), 'id', function(value, err){
+        if(err) {
+            callback(null, err);
+        }
+        else {
+            countIds(transaction.objectStore('blanks'),'id', function(value, err){
+                if(err) {
+                    callback(null, err);
+                }
+                else {
+                    countIds(transaction.objectStore('literals'), 'id', callback);
+                }
+            })
+        }
+    });
+}
+
 /**
  * Retrieves a token containing the URI, literal or blank node associated
  * to the provided OID.
@@ -23352,6 +23394,37 @@ Lexicon.prototype.unregister = function (quad, key, callback) {
 };
 
 /**
+ * dereferences or removes Uri
+ */
+Lexicon.prototype.dereferenceLexical = function(oid, objectStore, callback) {
+    var that = this;
+    if(oid === this.defaultGraphOid) {
+        callback(this.defaultGraphOid);
+    } else{
+        var request = objectStore.get(oid);
+        request.onsuccess = function(event) {
+            var lexicalData = event.target.result;
+            if(lexicalData) {
+                // found -> update
+                lexicalData.counter--;
+                var requestUpdate = lexicalData.counter >= 0 ? objectStore.put(lexicalData) : objectStore.delete(oid);
+                requestUpdate.onsuccess =function (event) {
+                    callback(lexicalData.counter);
+                };
+                requestUpdate.onerror = function (event) {
+                    callback(null, new Error("Error updating the LEXICAL data ["+oid+"]" + event.target.errorCode));
+                };
+            } else {
+                callback();
+            }
+        };
+        request.onerror = function(event) {
+            callback(null, new Error("Error retrieving the LEXICAL data for dereferenceing ["+oid+"]"+event.target.errorCode));
+        };
+    }
+}
+
+/**
  * Unregisters a value, either URI, literal or blank.
  * @param kind
  * @param oid
@@ -23364,24 +23437,25 @@ Lexicon.prototype._unregisterTerm = function (kind, oid, callback) {
     if (kind === 'uri') {
         if (oid != this.defaultGraphOid) {
             var removeKnownGraphs = function() {
-                var request = transaction.objectStore("knownGraphs").delete(oid);
-                request.onsuccess = function() { callback(); };
+                that.dereferenceLexical(oid,
+                                        transaction.objectStore("knownGraphs"), 
+                                        function() { callback(); });
                 //request.onerror = function(){ callback(); };
             };
-            var request = transaction.objectStore("uris").delete(oid);
-            request.onsuccess = removeKnownGraphs();
+            that.dereferenceLexical(oid, transaction.objectStore("uris"), removeKnownGraphs);
             //request.onerror = removeKnownGraphs();
         } else {
             callback();
         }
     } else if (kind === 'literal') {
-        var request = transaction.objectStore("literals").delete(oid);
-        request.onsuccess = function() { callback(); };
+        that.dereferenceLexical(oid,
+                                transaction.objectStore("literals"),
+                                function() { callback(); });
         //request.onerror = function() { callback(); };
-
     } else if (kind === 'blank') {
-        var request = transaction.objectStore("blanks").delete(oid);
-        request.onsuccess = function() { callback(); };
+        that.dereferenceLexical(oid,
+                                transaction.objectsStore("blanks"),
+                                function() { callback(); });
         //request.onerror = function() { callback(); };
     } else {
         callback();
@@ -23391,6 +23465,7 @@ Lexicon.prototype._unregisterTerm = function (kind, oid, callback) {
 module.exports = {
     Lexicon: Lexicon
 };
+
 },{"./btree":38,"./lexicon":42,"./utils":55}],46:[function(_dereq_,module,exports){
 
 // imports
@@ -23991,6 +24066,10 @@ QueryEngine = function(params) {
         this.customFns = params.customFns || {};
     }
 };
+
+QueryEngine.prototype.checkIntegrity = function(callback) {
+    this.lexicon.allCounts(callback);
+}
 
 QueryEngine.prototype.setCustomFunctions = function(customFns) {
     this.customFns = customFns;
@@ -25647,7 +25726,7 @@ QueryEngine.prototype._executeQuadDelete = function(quad, queryEnv, callback) {
     var errorMessage, key;
     async.seq(
         function(k){
-            that.normalizeQuad(quad, queryEnv, true, function(result){
+            that.normalizeQuad(quad, queryEnv, false, function(result){
                 if(result != null){
                     normalized = result;
                 } else {
