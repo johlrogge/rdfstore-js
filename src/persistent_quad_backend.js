@@ -196,4 +196,35 @@ QuadBackend.prototype.clear = function(callback) {
     request.onerror = function(){ callback(); };
 };
 
+QuadBackend.prototype.allCounts = function(callback) {
+    var ids = {};
+    var transaction = this.db.transaction([this.dbName],'readwrite');
+    function countIds(objectStore, idField, cb) {
+        var request = objectStore.openCursor();
+        function add(acc, triple, key) {
+            var id = triple[key];
+            var current = acc[id];
+            acc[id] = 1+ (current||1);
+            return acc;
+        };
+        request.onsuccess = function(event) {
+            var cursor = event.target.result;
+            if(cursor) {
+                var triple = cursor.value;
+                ids = add(ids, triple, 'subject');
+                ids = add(ids, triple, 'predicate');
+                ids = add(ids, triple, 'object');
+                cursor.continue();
+            } else {
+                cb(ids);
+            }
+        };
+        request.onerror = function(event) {
+            cb(null,new Error("Error retrieving data from the cursor: " + event.target.errorCode));
+        }
+    }
+
+    countIds(transaction.objectStore(this.dbName),'id', callback);
+}
+
 module.exports.QuadBackend = QuadBackend;

@@ -27,7 +27,39 @@ QueryEngine = function(params) {
 };
 
 QueryEngine.prototype.checkIntegrity = function(callback) {
-    this.lexicon.allCounts(callback);
+    var that = this;
+    that.lexicon.allCounts(function(expectedCounts){
+        that.backend.allCounts(function(actualCounts){
+            var diffs = {
+                onlyExpected:{},
+                onlyActual:{},
+                differences:{},
+                equal:{}
+            };
+            
+            for(k in expectedCounts) {
+                var expected = expectedCounts[k];
+                var actual = actualCounts[k];
+                if(actual === undefined) {
+                    diffs.onlyexpected[k] = expected;
+                }
+                else if (actual === expected) {
+                    diffs.equal[k] = expected;
+                }
+                else {
+                    diffs.differences[k] = {expected:expected, actual:actual}
+                };
+            }
+            for (k in actualCounts) {
+                var expected = expectedCounts[k];
+                if(expected === undefined) {
+                    diffs.onlyActual[k] = actualCounts[k];
+                }
+            }
+            callback(diffs);
+        });
+    });
+
 }
 
 QueryEngine.prototype.setCustomFunctions = function(customFns) {

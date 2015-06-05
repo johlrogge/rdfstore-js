@@ -23665,6 +23665,37 @@ QuadBackend.prototype.clear = function(callback) {
     request.onerror = function(){ callback(); };
 };
 
+QuadBackend.prototype.allCounts = function(callback) {
+    var ids = {};
+    var transaction = this.db.transaction([this.dbName],'readwrite');
+    function countIds(objectStore, idField, cb) {
+        var request = objectStore.openCursor();
+        function add(acc, triple, key) {
+            var id = triple[key];
+            var current = acc[id];
+            acc[id] = 1+ (current||1);
+            return acc;
+        };
+        request.onsuccess = function(event) {
+            var cursor = event.target.result;
+            if(cursor) {
+                var triple = cursor.value;
+                ids = add(ids, triple, 'subject');
+                ids = add(ids, triple, 'predicate');
+                ids = add(ids, triple, 'object');
+                cursor.continue();
+            } else {
+                cb(ids);
+            }
+        };
+        request.onerror = function(event) {
+            cb(null,new Error("Error retrieving data from the cursor: " + event.target.errorCode));
+        }
+    }
+
+    countIds(transaction.objectStore(this.dbName),'id', callback);
+}
+
 module.exports.QuadBackend = QuadBackend;
 
 },{"./utils":55}],47:[function(_dereq_,module,exports){
@@ -24068,7 +24099,39 @@ QueryEngine = function(params) {
 };
 
 QueryEngine.prototype.checkIntegrity = function(callback) {
-    this.lexicon.allCounts(callback);
+    var that = this;
+    that.lexicon.allCounts(function(expectedCounts){
+        that.backend.allCounts(function(actualCounts){
+            var diffs = {
+                onlyExpected:{},
+                onlyActual:{},
+                differences:{},
+                equal:{}
+            };
+            
+            for(k in expectedCounts) {
+                var expected = expectedCounts[k];
+                var actual = actualCounts[k];
+                if(actual === undefined) {
+                    diffs.onlyexpected[k] = expected;
+                }
+                else if (actual === expected) {
+                    diffs.equal[k] = expected;
+                }
+                else {
+                    diffs.differences[k] = {expected:expected, actual:actual}
+                };
+            }
+            for (k in actualCounts) {
+                var expected = expectedCounts[k];
+                if(expected === undefined) {
+                    diffs.onlyActual[k] = actualCounts[k];
+                }
+            }
+            callback(diffs);
+        });
+    });
+
 }
 
 QueryEngine.prototype.setCustomFunctions = function(customFns) {
