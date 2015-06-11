@@ -55,38 +55,33 @@ Store = function(arg1, arg2) {
 
     var that = this;
     this.customFns = {};
-    new Lexicon(function(lexicon){
-        var createQuadBackend = function() {
-            new QuadBackend(params, function (backend) {
-                /*
-                 if(params['overwrite'] === true) {
-                 // delete index values
-                 backend.clear();
-                 }
-                 */
+
+    new QuadBackend(params, function (backend) {
+        params.backend = backend;
+        var createLexicon = function() {
+            new Lexicon(function(lexicon){
                 var createEngine = function() {
                     params.backend = backend;
                     params.lexicon = lexicon;
-                    
                     that.engine = new QueryEngine(params);
-
                     callback(null, that);
-                }
-                if(params['overwrite']) {
-                    backend.clear(createEngine)
+                };
+                
+                if(params['overwrite'] === true) {
+                    // delete lexicon values
+                    lexicon.clear(createEngine);
                 } else {
                     createEngine();
-                }
-            });
+                };
+            },params)
+        };
+        if(params['overwrite']) {
+            backend.clear(createLexicon);
         }
-        if(params['overwrite'] === true) {
-            // delete lexicon values
-            lexicon.clear(createQuadBackend);
-        } else {
-            createQuadBackend();
-        }
-
-    },params['name']);
+        else {
+            createLexicon();
+        };
+    });
 };
 
 

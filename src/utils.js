@@ -460,6 +460,7 @@ module.exports = {
     map: map,
     each: each,
     forEach: each,
+    reduce: reduce,
     include: include,
     reject: reject,
     remove: reject,

@@ -14,6 +14,13 @@ var async = utils;
  * GSP  (s, ?, ?, g), (s, p, ?, g)
  * OS   (s, ?, o, ?)
  *
+ * indices for  URI references
+ * 
+ * subject 
+ * predicate
+ * object
+ * graph
+ *
  * @param configuration['dbName'] Name for the IndexedDB
  * @return The newly created backend.
  */
@@ -36,7 +43,7 @@ QuadBackend = function (configuration, callback) {
         };
 
         that.dbName = configuration['name'] || "rdfstorejs";
-        var request = that.indexedDB.open(this.dbName+"_db", 1);
+        var request = that.indexedDB.open(this.dbName+"_db", 2);
         request.onerror = function(event) {
             callback(null,new Error("Error opening IndexedDB: " + event.target.errorCode));
         };
@@ -45,13 +52,35 @@ QuadBackend = function (configuration, callback) {
             callback(that);
         };
         request.onupgradeneeded = function(event) {
+            var oldVersion = event.oldVersion || 0;
+            var newVersion = event.newVersion || 2;
+            
             var db = event.target.result;
-            var objectStore = db.createObjectStore(that.dbName, { keyPath: 'SPOG'});
-            _.each(that.indices, function(index){
-                if(index !== 'SPOG') {
-                    objectStore.createIndex(index,index,{unique: false});
-                }
-            });
+            function createGraphIndices(objectStore){
+                _.each(that.indices, function(index){
+                    if(index !== 'SPOG') {
+                        objectStore.createIndex(index,index,{unique: false});
+                    }
+                });
+            };
+
+            function createEntityIndices(objectStore){
+                _.each(that.componentOrders['SPOG'], function(index){
+                    objectStore.createIndex(index, index, {unique: false});
+                })
+                    };
+
+            if (oldVersion < 1) {
+                var objectStore = db.createObjectStore(that.dbName, { keyPath: 'SPOG'});
+                createGraphIndices(objectStore);
+                createEntityIndices(objectStore);
+            }
+            else if(oldVersion < 2) {
+                var transaction = event.target.transaction;
+                var objectStore = transaction.objectStore(that.dbName);
+                createGraphIndices(objectStore);
+                createEntityIndices(objectStore);
+            }
         };
     }
 };
@@ -195,6 +224,32 @@ QuadBackend.prototype.clear = function(callback) {
     request.onsuccess = function(){ callback(); };
     request.onerror = function(){ callback(); };
 };
+
+QuadBackend.prototype.countReferences = function(id, callback) {
+    var that = this,
+        transaction = that.db.transaction([that.dbName], "readwrite"),
+        request;
+    var result = [];
+    for(key in that.componentOrders.SPOG) {
+        (function(){
+            var index = that.componentOrders.SPOG[key];
+            request = transaction.objectStore(that.dbName).index(index).count(id);
+            request.onsuccess = function(event) {
+                result.push(event.target.result);
+                if(result.length === that.componentOrders.SPOG.length)  {
+                    var total = 0;
+                    for(i in result) {
+                        total = total + result[i];
+                    }
+                    callback(total);
+                }
+            };
+            request.onerror = function(){
+                callback();
+            };
+        })();
+    }
+}
 
 QuadBackend.prototype.allCounts = function(callback) {
     var ids = {};

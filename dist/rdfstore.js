@@ -17627,38 +17627,33 @@ Store = function(arg1, arg2) {
 
     var that = this;
     this.customFns = {};
-    new Lexicon(function(lexicon){
-        var createQuadBackend = function() {
-            new QuadBackend(params, function (backend) {
-                /*
-                 if(params['overwrite'] === true) {
-                 // delete index values
-                 backend.clear();
-                 }
-                 */
+
+    new QuadBackend(params, function (backend) {
+        params.backend = backend;
+        var createLexicon = function() {
+            new Lexicon(function(lexicon){
                 var createEngine = function() {
                     params.backend = backend;
                     params.lexicon = lexicon;
-                    
                     that.engine = new QueryEngine(params);
-
                     callback(null, that);
-                }
-                if(params['overwrite']) {
-                    backend.clear(createEngine)
+                };
+                
+                if(params['overwrite'] === true) {
+                    // delete lexicon values
+                    lexicon.clear(createEngine);
                 } else {
                     createEngine();
-                }
-            });
+                };
+            },params)
+        };
+        if(params['overwrite']) {
+            backend.clear(createLexicon);
         }
-        if(params['overwrite'] === true) {
-            // delete lexicon values
-            lexicon.clear(createQuadBackend);
-        } else {
-            createQuadBackend();
-        }
-
-    },params['name']);
+        else {
+            createLexicon();
+        };
+    });
 };
 
 
@@ -22890,9 +22885,8 @@ var InMemoryLexicon = _dereq_('./lexicon').Lexicon;
  */
 
 
-Lexicon = function(callback, dbName){
+Lexicon = function(callback, params){
     var that = this;
-
     utils.registerIndexedDB(that);
 
     this.defaultGraphOid = 0;
@@ -22900,7 +22894,8 @@ Lexicon = function(callback, dbName){
     this.defaultGraphUriTerm = {"token":"uri","prefix":null,"suffix":null,"value":this.defaultGraphUri};
     this.oidCounter = 1;
 
-    that.dbName = dbName || "rdfstorejs";
+    that.quadStore = params.backend;
+    that.dbName = params.name || "rdfstorejs";
     var request = that.indexedDB.open(this.dbName+"_lexicon", 1);
     request.onerror = function(event) {
         callback(null,new Error("Error opening IndexedDB: " + event.target.errorCode));
@@ -23394,33 +23389,21 @@ Lexicon.prototype.unregister = function (quad, key, callback) {
 };
 
 /**
- * dereferences or removes Uri
+ * dereferences or removes Lexical
  */
-Lexicon.prototype.dereferenceLexical = function(oid, objectStore, callback) {
+Lexicon.prototype._dereferenceLexical = function(oid, objectStore, callback) {
     var that = this;
     if(oid === this.defaultGraphOid) {
         callback(this.defaultGraphOid);
     } else{
-        var request = objectStore.get(oid);
-        request.onsuccess = function(event) {
-            var lexicalData = event.target.result;
-            if(lexicalData) {
-                // found -> update
-                lexicalData.counter--;
-                var requestUpdate = lexicalData.counter >= 0 ? objectStore.put(lexicalData) : objectStore.delete(oid);
-                requestUpdate.onsuccess =function (event) {
-                    callback(lexicalData.counter);
-                };
-                requestUpdate.onerror = function (event) {
-                    callback(null, new Error("Error updating the LEXICAL data ["+oid+"]" + event.target.errorCode));
-                };
-            } else {
-                callback();
-            }
+        var requestUpdate = objectStore.delete(oid);
+        requestUpdate.onsuccess =function (event) {
+            callback();
         };
-        request.onerror = function(event) {
-            callback(null, new Error("Error retrieving the LEXICAL data for dereferenceing ["+oid+"]"+event.target.errorCode));
+        requestUpdate.onerror = function (event) {
+            callback(null, new Error("Error deleting LEXICAL data ["+oid+"]" + event.target.errorCode));
         };
+
     }
 }
 
@@ -23433,33 +23416,44 @@ Lexicon.prototype.dereferenceLexical = function(oid, objectStore, callback) {
  */
 Lexicon.prototype._unregisterTerm = function (kind, oid, callback) {
     var that = this;
-    var transaction = that.db.transaction(["uris","literals","blanks", "knownGraphs"],"readwrite"), request;
-    if (kind === 'uri') {
-        if (oid != this.defaultGraphOid) {
-            var removeKnownGraphs = function() {
-                that.dereferenceLexical(oid,
-                                        transaction.objectStore("knownGraphs"), 
+    var transaction = function(){
+        return that.db.transaction(["uris","literals","blanks", "knownGraphs"],"readwrite")
+    };
+    that.quadStore.countReferences(oid, function(count){
+        if(count === 0) {
+            var request;
+            if (kind === 'uri') {
+                if (oid != this.defaultGraphOid) {
+                    var removeKnownGraphs = function() {
+                        that._dereferenceLexical(oid,
+                                                transaction().objectStore("knownGraphs"), 
+                                                function() { callback(); });
+                        //request.onerror = function(){ callback(); };
+                    };
+                    that._dereferenceLexical(oid, transaction().objectStore("uris"), removeKnownGraphs);
+                    //request.onerror = removeKnownGraphs();
+                } else {
+                    callback();
+                }
+            } else if (kind === 'literal') {
+                that._dereferenceLexical(oid,
+                                        transaction().objectStore("literals"),
                                         function() { callback(); });
-                //request.onerror = function(){ callback(); };
-            };
-            that.dereferenceLexical(oid, transaction.objectStore("uris"), removeKnownGraphs);
-            //request.onerror = removeKnownGraphs();
-        } else {
+                //request.onerror = function() { callback(); };
+            } else if (kind === 'blank') {
+                that._dereferenceLexical(oid,
+                                        transaction().objectsStore("blanks"),
+                                        function() { callback(); });
+                //request.onerror = function() { callback(); };
+            } else {
+                callback();
+            }
+
+        }
+        else {
             callback();
         }
-    } else if (kind === 'literal') {
-        that.dereferenceLexical(oid,
-                                transaction.objectStore("literals"),
-                                function() { callback(); });
-        //request.onerror = function() { callback(); };
-    } else if (kind === 'blank') {
-        that.dereferenceLexical(oid,
-                                transaction.objectsStore("blanks"),
-                                function() { callback(); });
-        //request.onerror = function() { callback(); };
-    } else {
-        callback();
-    }
+    });
 };
 
 module.exports = {
@@ -23483,6 +23477,13 @@ var async = utils;
  * GSP  (s, ?, ?, g), (s, p, ?, g)
  * OS   (s, ?, o, ?)
  *
+ * indices for  URI references
+ * 
+ * subject 
+ * predicate
+ * object
+ * graph
+ *
  * @param configuration['dbName'] Name for the IndexedDB
  * @return The newly created backend.
  */
@@ -23505,7 +23506,7 @@ QuadBackend = function (configuration, callback) {
         };
 
         that.dbName = configuration['name'] || "rdfstorejs";
-        var request = that.indexedDB.open(this.dbName+"_db", 1);
+        var request = that.indexedDB.open(this.dbName+"_db", 2);
         request.onerror = function(event) {
             callback(null,new Error("Error opening IndexedDB: " + event.target.errorCode));
         };
@@ -23514,13 +23515,35 @@ QuadBackend = function (configuration, callback) {
             callback(that);
         };
         request.onupgradeneeded = function(event) {
+            var oldVersion = event.oldVersion || 0;
+            var newVersion = event.newVersion || 2;
+            
             var db = event.target.result;
-            var objectStore = db.createObjectStore(that.dbName, { keyPath: 'SPOG'});
-            _.each(that.indices, function(index){
-                if(index !== 'SPOG') {
-                    objectStore.createIndex(index,index,{unique: false});
-                }
-            });
+            function createGraphIndices(objectStore){
+                _.each(that.indices, function(index){
+                    if(index !== 'SPOG') {
+                        objectStore.createIndex(index,index,{unique: false});
+                    }
+                });
+            };
+
+            function createEntityIndices(objectStore){
+                _.each(that.componentOrders['SPOG'], function(index){
+                    objectStore.createIndex(index, index, {unique: false});
+                })
+                    };
+
+            if (oldVersion < 1) {
+                var objectStore = db.createObjectStore(that.dbName, { keyPath: 'SPOG'});
+                createGraphIndices(objectStore);
+                createEntityIndices(objectStore);
+            }
+            else if(oldVersion < 2) {
+                var transaction = event.target.transaction;
+                var objectStore = transaction.objectStore(that.dbName);
+                createGraphIndices(objectStore);
+                createEntityIndices(objectStore);
+            }
         };
     }
 };
@@ -23664,6 +23687,32 @@ QuadBackend.prototype.clear = function(callback) {
     request.onsuccess = function(){ callback(); };
     request.onerror = function(){ callback(); };
 };
+
+QuadBackend.prototype.countReferences = function(id, callback) {
+    var that = this,
+        transaction = that.db.transaction([that.dbName], "readwrite"),
+        request;
+    var result = [];
+    for(key in that.componentOrders.SPOG) {
+        (function(){
+            var index = that.componentOrders.SPOG[key];
+            request = transaction.objectStore(that.dbName).index(index).count(id);
+            request.onsuccess = function(event) {
+                result.push(event.target.result);
+                if(result.length === that.componentOrders.SPOG.length)  {
+                    var total = 0;
+                    for(i in result) {
+                        total = total + result[i];
+                    }
+                    callback(total);
+                }
+            };
+            request.onerror = function(){
+                callback();
+            };
+        })();
+    }
+}
 
 QuadBackend.prototype.allCounts = function(callback) {
     var ids = {};
@@ -29735,6 +29784,7 @@ module.exports = {
     map: map,
     each: each,
     forEach: each,
+    reduce: reduce,
     include: include,
     reject: reject,
     remove: reject,

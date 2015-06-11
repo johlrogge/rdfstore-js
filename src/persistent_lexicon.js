@@ -8,9 +8,8 @@ var InMemoryLexicon = require('./lexicon').Lexicon;
  */
 
 
-Lexicon = function(callback, dbName){
+Lexicon = function(callback, params){
     var that = this;
-
     utils.registerIndexedDB(that);
 
     this.defaultGraphOid = 0;
@@ -18,7 +17,8 @@ Lexicon = function(callback, dbName){
     this.defaultGraphUriTerm = {"token":"uri","prefix":null,"suffix":null,"value":this.defaultGraphUri};
     this.oidCounter = 1;
 
-    that.dbName = dbName || "rdfstorejs";
+    that.quadStore = params.backend;
+    that.dbName = params.name || "rdfstorejs";
     var request = that.indexedDB.open(this.dbName+"_lexicon", 1);
     request.onerror = function(event) {
         callback(null,new Error("Error opening IndexedDB: " + event.target.errorCode));
@@ -512,33 +512,21 @@ Lexicon.prototype.unregister = function (quad, key, callback) {
 };
 
 /**
- * dereferences or removes Uri
+ * dereferences or removes Lexical
  */
-Lexicon.prototype.dereferenceLexical = function(oid, objectStore, callback) {
+Lexicon.prototype._dereferenceLexical = function(oid, objectStore, callback) {
     var that = this;
     if(oid === this.defaultGraphOid) {
         callback(this.defaultGraphOid);
     } else{
-        var request = objectStore.get(oid);
-        request.onsuccess = function(event) {
-            var lexicalData = event.target.result;
-            if(lexicalData) {
-                // found -> update
-                lexicalData.counter--;
-                var requestUpdate = lexicalData.counter >= 0 ? objectStore.put(lexicalData) : objectStore.delete(oid);
-                requestUpdate.onsuccess =function (event) {
-                    callback(lexicalData.counter);
-                };
-                requestUpdate.onerror = function (event) {
-                    callback(null, new Error("Error updating the LEXICAL data ["+oid+"]" + event.target.errorCode));
-                };
-            } else {
-                callback();
-            }
+        var requestUpdate = objectStore.delete(oid);
+        requestUpdate.onsuccess =function (event) {
+            callback();
         };
-        request.onerror = function(event) {
-            callback(null, new Error("Error retrieving the LEXICAL data for dereferenceing ["+oid+"]"+event.target.errorCode));
+        requestUpdate.onerror = function (event) {
+            callback(null, new Error("Error deleting LEXICAL data ["+oid+"]" + event.target.errorCode));
         };
+
     }
 }
 
@@ -551,33 +539,44 @@ Lexicon.prototype.dereferenceLexical = function(oid, objectStore, callback) {
  */
 Lexicon.prototype._unregisterTerm = function (kind, oid, callback) {
     var that = this;
-    var transaction = that.db.transaction(["uris","literals","blanks", "knownGraphs"],"readwrite"), request;
-    if (kind === 'uri') {
-        if (oid != this.defaultGraphOid) {
-            var removeKnownGraphs = function() {
-                that.dereferenceLexical(oid,
-                                        transaction.objectStore("knownGraphs"), 
+    var transaction = function(){
+        return that.db.transaction(["uris","literals","blanks", "knownGraphs"],"readwrite")
+    };
+    that.quadStore.countReferences(oid, function(count){
+        if(count === 0) {
+            var request;
+            if (kind === 'uri') {
+                if (oid != this.defaultGraphOid) {
+                    var removeKnownGraphs = function() {
+                        that._dereferenceLexical(oid,
+                                                transaction().objectStore("knownGraphs"), 
+                                                function() { callback(); });
+                        //request.onerror = function(){ callback(); };
+                    };
+                    that._dereferenceLexical(oid, transaction().objectStore("uris"), removeKnownGraphs);
+                    //request.onerror = removeKnownGraphs();
+                } else {
+                    callback();
+                }
+            } else if (kind === 'literal') {
+                that._dereferenceLexical(oid,
+                                        transaction().objectStore("literals"),
                                         function() { callback(); });
-                //request.onerror = function(){ callback(); };
-            };
-            that.dereferenceLexical(oid, transaction.objectStore("uris"), removeKnownGraphs);
-            //request.onerror = removeKnownGraphs();
-        } else {
+                //request.onerror = function() { callback(); };
+            } else if (kind === 'blank') {
+                that._dereferenceLexical(oid,
+                                        transaction().objectsStore("blanks"),
+                                        function() { callback(); });
+                //request.onerror = function() { callback(); };
+            } else {
+                callback();
+            }
+
+        }
+        else {
             callback();
         }
-    } else if (kind === 'literal') {
-        that.dereferenceLexical(oid,
-                                transaction.objectStore("literals"),
-                                function() { callback(); });
-        //request.onerror = function() { callback(); };
-    } else if (kind === 'blank') {
-        that.dereferenceLexical(oid,
-                                transaction.objectsStore("blanks"),
-                                function() { callback(); });
-        //request.onerror = function() { callback(); };
-    } else {
-        callback();
-    }
+    });
 };
 
 module.exports = {
