@@ -22993,18 +22993,11 @@ Lexicon.prototype.registerUri = function(uri, callback) {
             var uriData = event.target.result;
             if(uriData) {
                 // found in index -> update
-                uriData.counter++;
                 var oid = uriData.id;
-                var requestUpdate = objectStore.put(uriData);
-                requestUpdate.onsuccess =function (event) {
-                    callback(oid);
-                };
-                requestUpdate.onerror = function (event) {
-                    callback(null, new Error("Error updating the URI data" + event.target.errorCode));
-                };
+                callback(oid);
             } else {
                 // not found -> create
-                var requestAdd = objectStore.add({uri: uri, counter:0});
+                var requestAdd = objectStore.add({uri: uri});
                 requestAdd.onsuccess = function(event){
                     callback(event.target.result);
                 };
@@ -23077,7 +23070,7 @@ Lexicon.prototype.registerBlank = function(callback) {
     var that = this;
 
     var objectStore = that.db.transaction(["blanks"],"readwrite").objectStore("blanks");
-    var requestAdd = objectStore.add({label: oidStr, counter:0});
+    var requestAdd = objectStore.add({label: oidStr});
     requestAdd.onsuccess = function(event){
         callback(event.target.result);
     };
@@ -23143,19 +23136,11 @@ Lexicon.prototype.registerLiteral = function(literal, callback) {
     request.onsuccess = function(event) {
         var literalData = event.target.result;
         if(literalData) {
-            // found in index -> update
-            literalData.counter++;
             var oid = literalData.id;
-            var requestUpdate = objectStore.put(literalData);
-            requestUpdate.onsuccess =function (event) {
-                callback(oid);
-            };
-            requestUpdate.onerror = function (event) {
-                callback(null, new Error("Error updating the literal data" + event.target.errorCode));
-            };
+            callback(oid);
         } else {
             // not found -> create
-            var requestAdd = objectStore.add({literal: literal, counter:0});
+            var requestAdd = objectStore.add({literal: literal});
             requestAdd.onsuccess = function(event){
                 callback(event.target.result);
             };
@@ -23225,41 +23210,6 @@ Lexicon.prototype.parseLiteral = function(literalString) {
 Lexicon.prototype.parseUri = function(uriString) {
     return InMemoryLexicon.prototype.parseUri(uriString);
 };
-
-Lexicon.prototype.allCounts = function(callback) {
-    var ids = {};
-    var transaction = this.db.transaction(['knownGraphs', 'blanks', 'uris', 'literals'],'readwrite');
-    function countIds(objectStore, idField, cb) {
-        var request = objectStore.openCursor();
-        request.onsuccess = function(event) {
-            var cursor = event.target.result;
-            if(cursor) {
-                ids[cursor.value[idField]]=cursor.value.counter;
-                cursor.continue();
-            } else {
-                cb(ids);
-            }
-        };
-        request.onerror = function(event) {
-            cb(null,new Error("Error retrieving data from the cursor: " + event.target.errorCode));
-        }
-    }
-    countIds(transaction.objectStore('uris'), 'id', function(value, err){
-        if(err) {
-            callback(null, err);
-        }
-        else {
-            countIds(transaction.objectStore('blanks'),'id', function(value, err){
-                if(err) {
-                    callback(null, err);
-                }
-                else {
-                    countIds(transaction.objectStore('literals'), 'id', callback);
-                }
-            })
-        }
-    });
-}
 
 /**
  * Retrieves a token containing the URI, literal or blank node associated
